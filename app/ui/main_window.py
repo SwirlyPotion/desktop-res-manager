@@ -19,8 +19,8 @@ from PyQt6.QtWidgets import (
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from database import SessionLocal
-from models import (
+from app.db.database import SessionLocal
+from app.db.models import (
     RegistrationRequestStatus,
     User,
     UserRegistrationRequest,

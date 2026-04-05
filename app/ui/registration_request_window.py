@@ -16,8 +16,8 @@ from PyQt6.QtWidgets import (
 )
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from database import SessionLocal, init_db
-from models import UserRegistrationRequest, UserRole, hash_password
+from app.db.database import SessionLocal, init_db
+from app.db.models import UserRegistrationRequest, UserRole, hash_password
 
 
 class RegistrationRequestDialog(QDialog):

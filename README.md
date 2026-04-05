@@ -4,14 +4,17 @@ A starter Python desktop application for reservations management built with **Py
 
 ## Project layout
 
-- `main.py` - PyQt6 app startup
-- `ui/login_window.py` - Initial login/connect window
-- `ui/registration_request_window.py` - Registration request dialog
-- `ui/main_window.py` - Main window scaffold
-- `config.py` - Environment-driven DB settings
-- `database.py` - SQLAlchemy engine/session/bootstrap
-- `models.py` - ORM entities for properties, rental units, reservations, users
-- `__main__.py` - Alternate Python entrypoint
+- `app/` - Application package root
+   - `bootstrap.py` - App startup orchestration
+   - `__main__.py` - Package module entrypoint
+   - `db/config.py` - Environment-driven DB settings
+   - `db/database.py` - SQLAlchemy engine/session/bootstrap
+   - `db/models.py` - ORM entities for properties, rental units, reservations, users
+   - `ui/login_window.py` - Initial login/connect window
+   - `ui/registration_request_window.py` - Registration request dialog
+   - `ui/main_window.py` - Main application window
+- `pyproject.toml` - Packaging metadata and console script entrypoint
+- `main.py` - Root compatibility launcher
 - `.env.example` - Example environment variables for MySQL
 - `requirements.txt` - Python dependencies
 
@@ -32,7 +35,7 @@ A starter Python desktop application for reservations management built with **Py
 3. Install dependencies:
 
    ```powershell
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
 4. Copy environment variables and edit as needed:
@@ -42,6 +45,18 @@ A starter Python desktop application for reservations management built with **Py
    ```
 
 5. Run application:
+
+   ```powershell
+   python -m app
+   ```
+
+   Or run the installed console command:
+
+   ```powershell
+   desktop-res-manager
+   ```
+
+   Compatibility launcher is still available:
 
    ```powershell
    python main.py

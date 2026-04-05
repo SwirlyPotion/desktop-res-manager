@@ -18,9 +18,9 @@ from PyQt6.QtWidgets import (
 )
 from sqlalchemy.exc import SQLAlchemyError
 
-from database import SessionLocal, init_db
-from models import User
-from ui.registration_request_window import RegistrationRequestDialog
+from app.db.database import SessionLocal, init_db
+from app.db.models import User
+from app.ui.registration_request_window import RegistrationRequestDialog
 
 APP_ORG = "DesktopReservationsManager"
 APP_NAME = "DesktopReservationsManager"

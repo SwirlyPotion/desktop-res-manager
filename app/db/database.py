@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, scoped_session, sessionmaker
 
-from config import load_settings
+from app.db.config import load_settings
 
 
 class Base(DeclarativeBase):
@@ -21,6 +21,6 @@ SessionLocal = scoped_session(
 
 def init_db() -> None:
     # Imported here to ensure model classes are registered before create_all.
-    import models  # noqa: F401
+    import app.db.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
