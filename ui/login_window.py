@@ -29,7 +29,7 @@ SPINNER_FRAMES = ["|", "/", "-", "\\"]
 
 
 class LoginWorker(QThread):
-    finished_login = pyqtSignal(bool, str)
+    finished_login = pyqtSignal(bool, str, str)
 
     def __init__(self, username: str, password: str) -> None:
         super().__init__()
@@ -49,6 +49,7 @@ class LoginWorker(QThread):
             self.finished_login.emit(
                 False,
                 f"database:Could not connect to database. Details: {exc}",
+                "",
             )
             return
 
@@ -56,14 +57,15 @@ class LoginWorker(QThread):
             self.finished_login.emit(
                 False,
                 "credentials:Incorrect username or password.",
+                "",
             )
             return
 
-        self.finished_login.emit(True, "")
+        self.finished_login.emit(True, "", user.role.value)
 
 
 class LoginWindow(QWidget):
-    authenticated = pyqtSignal()
+    authenticated = pyqtSignal(str)
 
     def __init__(self) -> None:
         super().__init__()
@@ -73,6 +75,7 @@ class LoginWindow(QWidget):
         self._spinner_index = 0
         self._active_username = ""
         self._active_password = ""
+        self._active_role = ""
         self._login_worker: LoginWorker | None = None
         self._spinner_timer = QTimer(self)
         self._spinner_timer.setInterval(120)
@@ -163,7 +166,12 @@ class LoginWindow(QWidget):
         self._login_worker.finished_login.connect(self._on_login_finished)
         self._login_worker.start()
 
-    def _on_login_finished(self, success: bool, message: str) -> None:
+    def _on_login_finished(
+        self,
+        success: bool,
+        message: str,
+        role_value: str,
+    ) -> None:
         self._spinner_timer.stop()
 
         if not success:
@@ -189,6 +197,7 @@ class LoginWindow(QWidget):
             self._active_username,
             self._active_password,
         )
+        self._active_role = role_value
         self.status_label.setText("Success!")
         QTimer.singleShot(1000, self._finish_connect)
 
@@ -226,4 +235,4 @@ class LoginWindow(QWidget):
         self.status_label.setText(f"Connecting to database {frame}")
 
     def _finish_connect(self) -> None:
-        self.authenticated.emit()
+        self.authenticated.emit(self._active_role)
