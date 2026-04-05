@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import base64
+import enum
 import hashlib
 import hmac
 import os
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -18,7 +27,34 @@ PASSWORD_ITERATIONS = 390000
 PASSWORD_SALT_BYTES = 16
 
 
-def _build_password_hash(password: str) -> str:
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    OWNER = "owner"
+    MANAGER = "manager"
+    PERSONNEL = "personnel"
+
+
+class RegistrationRequestStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+USER_ROLE_ENUM = Enum(
+    UserRole,
+    name="user_role",
+    native_enum=False,
+    values_callable=lambda roles: [role.value for role in roles],
+)
+REGISTRATION_REQUEST_STATUS_ENUM = Enum(
+    RegistrationRequestStatus,
+    name="registration_request_status",
+    native_enum=False,
+    values_callable=lambda statuses: [status.value for status in statuses],
+)
+
+
+def hash_password(password: str) -> str:
     if not password:
         raise ValueError("Password cannot be empty.")
 
@@ -37,7 +73,7 @@ def _build_password_hash(password: str) -> str:
     )
 
 
-def _verify_password_hash(password: str, password_hash: str) -> bool:
+def verify_password_hash(password: str, password_hash: str) -> bool:
     try:
         scheme, iterations_raw, salt_b64, expected_digest_b64 = (
             password_hash.split("$", 3)
@@ -67,6 +103,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(
         String(200), unique=True, index=True, nullable=False
     )
+    role: Mapped[UserRole] = mapped_column(
+        USER_ROLE_ENUM, nullable=False, default=UserRole.PERSONNEL
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     phone_number: Mapped[str] = mapped_column(String(30), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -75,10 +114,36 @@ class User(Base):
     )
 
     def set_password(self, password: str) -> None:
-        self.password_hash = _build_password_hash(password)
+        self.password_hash = hash_password(password)
 
     def verify_password(self, password: str) -> bool:
-        return _verify_password_hash(password, self.password_hash)
+        return verify_password_hash(password, self.password_hash)
+
+
+class UserRegistrationRequest(Base):
+    __tablename__ = "user_registration_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(
+        String(50), unique=True, index=True, nullable=False
+    )
+    email: Mapped[str] = mapped_column(
+        String(200), unique=True, index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(30), nullable=False)
+    requested_role: Mapped[UserRole] = mapped_column(
+        USER_ROLE_ENUM, nullable=False
+    )
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[RegistrationRequestStatus] = mapped_column(
+        REGISTRATION_REQUEST_STATUS_ENUM,
+        nullable=False,
+        default=RegistrationRequestStatus.PENDING,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(), default=datetime.utcnow
+    )
 
 
 class Property(Base):

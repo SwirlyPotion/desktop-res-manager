@@ -5,10 +5,12 @@ A starter Python desktop application for reservations management built with **Py
 ## Project layout
 
 - `main.py` - PyQt6 app startup
+- `ui/login_window.py` - Initial login/connect window
+- `ui/registration_request_window.py` - Registration request dialog
 - `ui/main_window.py` - Main window scaffold
 - `config.py` - Environment-driven DB settings
 - `database.py` - SQLAlchemy engine/session/bootstrap
-- `models.py` - ORM entities for properties, rental units, reservations
+- `models.py` - ORM entities for properties, rental units, reservations, users
 - `__main__.py` - Alternate Python entrypoint
 - `.env.example` - Example environment variables for MySQL
 - `requirements.txt` - Python dependencies
@@ -47,5 +49,6 @@ A starter Python desktop application for reservations management built with **Py
 
 ## Notes
 
-- On startup, the app attempts to create tables in the configured MySQL database.
+- Users log in from an initial connect window before reaching the main app.
+- The login flow supports secure local credential storage via OS keyring.
 - Current UI is intentionally minimal and ready for iterative feature development (CRUD screens, availability checks, validation, etc.).
