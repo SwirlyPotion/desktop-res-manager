@@ -6,8 +6,8 @@ import sys
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from reservation_manager.database import init_db
-from reservation_manager.ui.main_window import MainWindow
+from database import init_db
+from ui.main_window import MainWindow
 
 
 def run() -> int:

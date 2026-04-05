@@ -7,7 +7,7 @@ from datetime import date, datetime
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from reservation_manager.database import Base
+from database import Base
 
 
 class Property(Base):

@@ -1,4 +1,4 @@
-from reservation_manager.main import run
+from main import run
 
 if __name__ == "__main__":
     raise SystemExit(run())

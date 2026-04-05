@@ -4,12 +4,12 @@ A starter Python desktop application for reservations management built with **Py
 
 ## Project layout
 
-- `reservation_manager/` - Application package
-  - `main.py` - PyQt6 app startup
-  - `ui/main_window.py` - Main window scaffold
-  - `config.py` - Environment-driven DB settings
-  - `database.py` - SQLAlchemy engine/session/bootstrap
-  - `models.py` - ORM entities for properties, rental units, reservations
+- `main.py` - PyQt6 app startup
+- `ui/main_window.py` - Main window scaffold
+- `config.py` - Environment-driven DB settings
+- `database.py` - SQLAlchemy engine/session/bootstrap
+- `models.py` - ORM entities for properties, rental units, reservations
+- `__main__.py` - Alternate Python entrypoint
 - `.env.example` - Example environment variables for MySQL
 - `requirements.txt` - Python dependencies
 
@@ -42,7 +42,7 @@ A starter Python desktop application for reservations management built with **Py
 5. Run application:
 
    ```powershell
-   python -m reservation_manager
+   python main.py
    ```
 
 ## Notes
