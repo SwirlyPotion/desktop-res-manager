@@ -1,13 +1,84 @@
-"""Database models for properties, rental units, and reservations."""
+"""Database models for properties, rental units, reservations, and users."""
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import os
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
+
+PASSWORD_SCHEME = "pbkdf2_sha256"
+PASSWORD_ITERATIONS = 390000
+PASSWORD_SALT_BYTES = 16
+
+
+def _build_password_hash(password: str) -> str:
+    if not password:
+        raise ValueError("Password cannot be empty.")
+
+    salt = os.urandom(PASSWORD_SALT_BYTES)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, PASSWORD_ITERATIONS
+    )
+
+    salt_b64 = base64.b64encode(salt).decode("ascii")
+    digest_b64 = base64.b64encode(digest).decode("ascii")
+    return (
+        f"{PASSWORD_SCHEME}$"
+        f"{PASSWORD_ITERATIONS}$"
+        f"{salt_b64}$"
+        f"{digest_b64}"
+    )
+
+
+def _verify_password_hash(password: str, password_hash: str) -> bool:
+    try:
+        scheme, iterations_raw, salt_b64, expected_digest_b64 = (
+            password_hash.split("$", 3)
+        )
+        if scheme != PASSWORD_SCHEME:
+            return False
+
+        iterations = int(iterations_raw)
+        salt = base64.b64decode(salt_b64)
+        expected_digest = base64.b64decode(expected_digest_b64)
+    except (TypeError, ValueError):
+        return False
+
+    candidate_digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations
+    )
+    return hmac.compare_digest(candidate_digest, expected_digest)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(
+        String(50), unique=True, index=True, nullable=False
+    )
+    email: Mapped[str] = mapped_column(
+        String(200), unique=True, index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(30), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(), default=datetime.utcnow
+    )
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = _build_password_hash(password)
+
+    def verify_password(self, password: str) -> bool:
+        return _verify_password_hash(password, self.password_hash)
 
 
 class Property(Base):
