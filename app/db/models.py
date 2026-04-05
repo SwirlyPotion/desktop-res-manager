@@ -7,6 +7,7 @@ import enum
 import hashlib
 import hmac
 import os
+from decimal import Decimal
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -14,11 +15,11 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Integer,
     Numeric,
     String,
-    Text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db.database import Base
 
@@ -149,10 +150,113 @@ class UserRegistrationRequest(Base):
 class Property(Base):
     __tablename__ = "properties"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
-    address: Mapped[str | None] = mapped_column(String(255))
-    description: Mapped[str | None] = mapped_column(Text())
+    mnemonic_name: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True
+    )
+    address_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    address_el: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(
+        Numeric(10, 7), nullable=True
+    )
+    longitude: Mapped[float | None] = mapped_column(
+        Numeric(10, 7), nullable=True
+    )
+    google_maps_pin: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+    bedrooms_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    bathrooms_count: Mapped[float] = mapped_column(
+        Numeric(3, 1), nullable=False
+    )
+    guests_standard: Mapped[int] = mapped_column(Integer, nullable=False)
+    guests_maximum: Mapped[int] = mapped_column(Integer, nullable=False)
+    area_sqm: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+
+    @validates("bathrooms_count")
+    def _validate_bathrooms_count(
+        self,
+        key: str,
+        value: Decimal | float | int,
+    ) -> Decimal:
+        decimal_value = Decimal(str(value))
+        if decimal_value <= 0:
+            raise ValueError("bathrooms_count must be greater than zero.")
+
+        # Bathrooms are allowed only in 0.5 increments.
+        if (decimal_value * 2) % 1 != 0:
+            raise ValueError("bathrooms_count must be a multiple of 0.5.")
+        return decimal_value
+
+    @validates("bedrooms_count")
+    def _validate_bedrooms_count(self, key: str, value: int) -> int:
+        if value < 0:
+            raise ValueError("bedrooms_count must be 0 or greater.")
+        return value
+
+    @validates("area_sqm")
+    def _validate_area_sqm(
+        self,
+        key: str,
+        value: Decimal | float | int,
+    ) -> Decimal:
+        decimal_value = Decimal(str(value))
+        if decimal_value <= 0:
+            raise ValueError("area_sqm must be greater than zero.")
+        return decimal_value
+
+    @validates("latitude")
+    def _validate_latitude(
+        self,
+        key: str,
+        value: Decimal | float | int | None,
+    ) -> Decimal | None:
+        if value is None:
+            return None
+
+        decimal_value = Decimal(str(value))
+        if decimal_value < Decimal("-90") or decimal_value > Decimal("90"):
+            raise ValueError("latitude must be between -90 and 90.")
+        return decimal_value
+
+    @validates("longitude")
+    def _validate_longitude(
+        self,
+        key: str,
+        value: Decimal | float | int | None,
+    ) -> Decimal | None:
+        if value is None:
+            return None
+
+        decimal_value = Decimal(str(value))
+        if decimal_value < Decimal("-180") or decimal_value > Decimal("180"):
+            raise ValueError("longitude must be between -180 and 180.")
+        return decimal_value
+
+    @validates("guests_standard")
+    def _validate_guests_standard(self, key: str, value: int) -> int:
+        if value < 0:
+            raise ValueError("guests_standard must be 0 or greater.")
+
+        if self.guests_maximum is not None and value > self.guests_maximum:
+            raise ValueError(
+                "guests_standard cannot exceed guests_maximum."
+            )
+        return value
+
+    @validates("guests_maximum")
+    def _validate_guests_maximum(self, key: str, value: int) -> int:
+        if value < 0:
+            raise ValueError("guests_maximum must be 0 or greater.")
+
+        if self.guests_standard is not None and value < self.guests_standard:
+            raise ValueError(
+                "guests_maximum cannot be less than guests_standard."
+            )
+        return value
 
     units: Mapped[list[RentalUnit]] = relationship(
         back_populates="property", cascade="all, delete-orphan"
