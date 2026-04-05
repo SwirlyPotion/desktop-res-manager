@@ -198,8 +198,7 @@ class LoginWindow(QWidget):
             self._active_password,
         )
         self._active_role = role_value
-        self.status_label.setText("Success!")
-        QTimer.singleShot(1000, self._finish_connect)
+        self._finish_connect()
 
     def _persist_credentials(self, username: str, password: str) -> None:
         settings = QSettings(APP_ORG, APP_NAME)

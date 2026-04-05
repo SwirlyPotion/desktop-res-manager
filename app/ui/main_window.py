@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -35,6 +35,52 @@ USER_ROLE_OPTIONS = [
 ]
 
 
+class AdminDataLoader(QThread):
+    loaded = pyqtSignal(list, list, str)
+
+    def run(self) -> None:
+        try:
+            with SessionLocal() as session:
+                users = session.query(User).order_by(User.id.asc()).all()
+                requests = (
+                    session.query(UserRegistrationRequest)
+                    .order_by(UserRegistrationRequest.created_at.desc())
+                    .all()
+                )
+        except SQLAlchemyError as exc:
+            self.loaded.emit([], [], str(exc))
+            return
+
+        users_data = [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "name": user.name,
+                "phone_number": user.phone_number,
+                "role": user.role.value,
+                "created_at": user.created_at,
+            }
+            for user in users
+        ]
+
+        requests_data = [
+            {
+                "id": request.id,
+                "username": request.username,
+                "email": request.email,
+                "name": request.name,
+                "phone_number": request.phone_number,
+                "requested_role": request.requested_role.value,
+                "status": request.status.value,
+                "created_at": request.created_at,
+            }
+            for request in requests
+        ]
+
+        self.loaded.emit(users_data, requests_data, "")
+
+
 class MainWindow(QMainWindow):
     def __init__(self, role_value: str = "") -> None:
         super().__init__()
@@ -45,6 +91,11 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.users_table: QTableWidget | None = None
         self.requests_table: QTableWidget | None = None
+        self._loading_index = 0
+        self._admin_loader: AdminDataLoader | None = None
+        self._loading_timer = QTimer(self)
+        self._loading_timer.setInterval(120)
+        self._loading_timer.timeout.connect(self._tick_loading_spinner)
 
         if self.current_role == UserRole.ADMIN.value:
             self.tabs.addTab(self._build_users_tab(), "Users")
@@ -57,8 +108,13 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         status = QStatusBar()
+        self.loading_label = QLabel("")
+        status.addPermanentWidget(self.loading_label)
         status.showMessage("Ready")
         self.setStatusBar(status)
+
+        if self.current_role == UserRole.ADMIN.value:
+            self._load_admin_data_async()
 
     def _build_users_tab(self) -> QWidget:
         widget = QWidget()
@@ -87,7 +143,7 @@ class MainWindow(QMainWindow):
         refresh_button = QPushButton("Refresh")
         save_button = QPushButton("Save Changes")
         revoke_button = QPushButton("Revoke User")
-        refresh_button.clicked.connect(self._reload_users)
+        refresh_button.clicked.connect(self._load_admin_data_async)
         save_button.clicked.connect(self._save_user_changes)
         revoke_button.clicked.connect(self._revoke_selected_user)
         actions.addWidget(refresh_button)
@@ -95,7 +151,6 @@ class MainWindow(QMainWindow):
         actions.addWidget(revoke_button)
         layout.addLayout(actions)
 
-        self._reload_users()
         return widget
 
     def _build_user_requests_tab(self) -> QWidget:
@@ -126,7 +181,7 @@ class MainWindow(QMainWindow):
         refresh_button = QPushButton("Refresh")
         approve_button = QPushButton("Approve")
         decline_button = QPushButton("Decline")
-        refresh_button.clicked.connect(self._reload_requests)
+        refresh_button.clicked.connect(self._load_admin_data_async)
         approve_button.clicked.connect(self._approve_selected_request)
         decline_button.clicked.connect(self._decline_selected_request)
         actions.addWidget(refresh_button)
@@ -134,8 +189,172 @@ class MainWindow(QMainWindow):
         actions.addWidget(decline_button)
         layout.addLayout(actions)
 
-        self._reload_requests()
         return widget
+
+    def _tick_loading_spinner(self) -> None:
+        frame = ["|", "/", "-", "\\"][self._loading_index % 4]
+        self._loading_index += 1
+        self.loading_label.setText(f"Loading... {frame}")
+
+    def _set_loading_state(self, loading: bool) -> None:
+        if loading:
+            self._loading_index = 0
+            self.loading_label.setText("Loading... |")
+            self._loading_timer.start()
+            return
+
+        self._loading_timer.stop()
+        self.loading_label.setText("")
+
+    def _load_admin_data_async(self) -> None:
+        if self.current_role != UserRole.ADMIN.value:
+            return
+
+        if self._admin_loader is not None and self._admin_loader.isRunning():
+            return
+
+        self._set_loading_state(True)
+        self._admin_loader = AdminDataLoader()
+        self._admin_loader.loaded.connect(self._on_admin_data_loaded)
+        self._admin_loader.start()
+
+    def _on_admin_data_loaded(
+        self,
+        users_data: list,
+        requests_data: list,
+        error_message: str,
+    ) -> None:
+        self._set_loading_state(False)
+
+        if error_message:
+            QMessageBox.warning(
+                self,
+                "Database",
+                f"Could not load admin data.\n\nDetails: {error_message}",
+            )
+            return
+
+        self._populate_users_table(users_data)
+        self._populate_requests_table(requests_data)
+
+    def _populate_users_table(self, users_data: list) -> None:
+        if self.users_table is None:
+            return
+
+        self.users_table.setRowCount(len(users_data))
+        for row, user in enumerate(users_data):
+            self._set_table_text(
+                self.users_table,
+                row,
+                0,
+                str(user["id"]),
+                editable=False,
+            )
+            self._set_table_text(
+                self.users_table,
+                row,
+                1,
+                user["username"],
+                editable=True,
+            )
+            self._set_table_text(
+                self.users_table,
+                row,
+                2,
+                user["email"],
+                editable=True,
+            )
+            self._set_table_text(
+                self.users_table,
+                row,
+                3,
+                user["name"],
+                editable=True,
+            )
+            self._set_table_text(
+                self.users_table,
+                row,
+                4,
+                user["phone_number"],
+                editable=True,
+            )
+
+            role_combo = QComboBox()
+            for role in USER_ROLE_OPTIONS:
+                role_combo.addItem(role.capitalize(), role)
+            role_combo.setCurrentIndex(USER_ROLE_OPTIONS.index(user["role"]))
+            self.users_table.setCellWidget(row, 5, role_combo)
+
+            self._set_table_text(
+                self.users_table,
+                row,
+                6,
+                user["created_at"].strftime("%Y-%m-%d %H:%M"),
+                editable=False,
+            )
+
+    def _populate_requests_table(self, requests_data: list) -> None:
+        if self.requests_table is None:
+            return
+
+        self.requests_table.setRowCount(len(requests_data))
+        for row, request in enumerate(requests_data):
+            self._set_table_text(
+                self.requests_table,
+                row,
+                0,
+                str(request["id"]),
+                editable=False,
+            )
+            self._set_table_text(
+                self.requests_table,
+                row,
+                1,
+                request["username"],
+                editable=False,
+            )
+            self._set_table_text(
+                self.requests_table,
+                row,
+                2,
+                request["email"],
+                editable=False,
+            )
+            self._set_table_text(
+                self.requests_table,
+                row,
+                3,
+                request["name"],
+                editable=False,
+            )
+            self._set_table_text(
+                self.requests_table,
+                row,
+                4,
+                request["phone_number"],
+                editable=False,
+            )
+            self._set_table_text(
+                self.requests_table,
+                row,
+                5,
+                request["requested_role"],
+                editable=False,
+            )
+            self._set_table_text(
+                self.requests_table,
+                row,
+                6,
+                request["status"],
+                editable=False,
+            )
+            self._set_table_text(
+                self.requests_table,
+                row,
+                7,
+                request["created_at"].strftime("%Y-%m-%d %H:%M"),
+                editable=False,
+            )
 
     def _set_table_text(
         self,
@@ -280,7 +499,7 @@ class MainWindow(QMainWindow):
             return
 
         QMessageBox.information(self, "Users", "User changes saved.")
-        self._reload_users()
+        self._load_admin_data_async()
 
     def _revoke_selected_user(self) -> None:
         user_id = self._selected_user_id()
@@ -309,7 +528,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(
                         self, "Users", "User no longer exists."
                     )
-                    self._reload_users()
+                    self._load_admin_data_async()
                     return
 
                 session.delete(user)
@@ -322,7 +541,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self._reload_users()
+        self._load_admin_data_async()
         QMessageBox.information(self, "Users", "User revoked.")
 
     def _reload_requests(self) -> None:
@@ -429,7 +648,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(
                         self, "User Requests", "Request no longer exists."
                     )
-                    self._reload_requests()
+                    self._load_admin_data_async()
                     return
 
                 if request.status != RegistrationRequestStatus.PENDING:
@@ -467,8 +686,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self._reload_requests()
-        self._reload_users()
+        self._load_admin_data_async()
         QMessageBox.information(
             self,
             "User Requests",
@@ -492,7 +710,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(
                         self, "User Requests", "Request no longer exists."
                     )
-                    self._reload_requests()
+                    self._load_admin_data_async()
                     return
 
                 request.status = RegistrationRequestStatus.REJECTED
@@ -505,7 +723,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        self._reload_requests()
+        self._load_admin_data_async()
         QMessageBox.information(self, "User Requests", "Request declined.")
 
     def _build_properties_tab(self) -> QWidget:
