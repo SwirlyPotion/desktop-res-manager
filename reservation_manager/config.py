@@ -5,20 +5,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
 
 def _load_env_file() -> None:
-    """Load key/value pairs from a local .env file if present."""
-    if not os.path.exists(".env"):
-        return
-
-    with open(".env", "r", encoding="utf-8") as env_file:
-        for line in env_file:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-
-            key, value = stripped.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip())
+    """Load environment variables from a local .env file if present."""
+    load_dotenv(override=False)
 
 
 @dataclass(frozen=True)
